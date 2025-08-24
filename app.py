@@ -1,6 +1,5 @@
 import os
 import streamlit as st
-from dotenv import load_dotenv
 import warnings
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_openai import OpenAIEmbeddings, OpenAI
@@ -14,9 +13,8 @@ from langchain.memory import ConversationBufferMemory
 warnings.filterwarnings("ignore")
 
 # =========================
-# 🌎 Carregar variáveis de ambiente (apenas local)
+# 🌎 Carregar variáveis de ambiente 
 # =========================
-load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY"))
 
 # =========================
