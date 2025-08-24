@@ -2,9 +2,10 @@ import os
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
+import warnings
 
 # =========================
 # 🔒 Chave da API pelo Secrets (Streamlit Cloud)
@@ -14,7 +15,6 @@ api_key = st.secrets["OPENAI_API_KEY"]
 # =========================
 # 🚫 Remover avisos irrelevantes
 # =========================
-import warnings
 warnings.filterwarnings("ignore")
 
 # =========================
@@ -67,18 +67,28 @@ def configurar_modelos():
 embedding_model, conversation_chain = configurar_modelos()
 
 # =========================
-# 📄 Carregar Currículo
+# 📄 Carregar Currículo (via upload ou arquivo)
 # =========================
 @st.cache_resource
-def carregar_index():
-    if not os.path.exists("pablo_resume.pdf"):
-        return None
-    loader = PyPDFLoader("pablo_resume.pdf")
+def carregar_index(caminho_pdf):
+    loader = PyPDFLoader(caminho_pdf)
     documentos = loader.load()
-    db = Chroma.from_documents(documentos, embedding_model)
+    db = FAISS.from_documents(documentos, embedding_model)
     return db
 
-index = carregar_index()
+index = None
+pdf_carregado = False
+
+uploaded_file = st.file_uploader("📄 Faça upload do currículo de Pablo (PDF)", type="pdf")
+if uploaded_file:
+    caminho_pdf = "pablo_resume.pdf"
+    with open(caminho_pdf, "wb") as f:
+        f.write(uploaded_file.read())
+    index = carregar_index(caminho_pdf)
+    pdf_carregado = True
+elif os.path.exists("pablo_resume.pdf"):
+    index = carregar_index("pablo_resume.pdf")
+    pdf_carregado = True
 
 # =========================
 # 🧩 Template
