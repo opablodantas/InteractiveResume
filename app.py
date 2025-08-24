@@ -1,16 +1,12 @@
 import os
 import streamlit as st
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from dotenv import load_dotenv
+import warnings
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain_openai import OpenAIEmbeddings, OpenAI
 from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
-import warnings
-
-# =========================
-# 🔒 Chave da API pelo Secrets (Streamlit Cloud)
-# =========================
-api_key = st.secrets["OPENAI_API_KEY"]
 
 # =========================
 # 🚫 Remover avisos irrelevantes
@@ -18,11 +14,17 @@ api_key = st.secrets["OPENAI_API_KEY"]
 warnings.filterwarnings("ignore")
 
 # =========================
+# 🌎 Carregar variáveis de ambiente (apenas local)
+# =========================
+load_dotenv()
+api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY"))
+
+# =========================
 # 🎨 Configuração da Página
 # =========================
 st.set_page_config(
-    page_title="Assistente Virtual - Pablo Dantas", 
-    page_icon="🤖", 
+    page_title="Assistente Virtual - Pablo Dantas",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -60,38 +62,34 @@ if "memory" not in st.session_state:
 @st.cache_resource
 def configurar_modelos():
     embeddings = OpenAIEmbeddings(api_key=api_key)
-    llm = ChatOpenAI(api_key=api_key, temperature=0.7, model="gpt-3.5-turbo")
+    llm = OpenAI(api_key=api_key, temperature=0.7, model_name="gpt-3.5-turbo-instruct")
     chain = ConversationChain(llm=llm, memory=st.session_state.memory, verbose=False)
     return embeddings, chain
 
 embedding_model, conversation_chain = configurar_modelos()
 
 # =========================
-# 📄 Carregar Currículo (via upload ou arquivo)
+# 📄 Carregar Currículo (Upload + Leitura com PyPDFDirectoryLoader)
 # =========================
-@st.cache_resource
-def carregar_index(caminho_pdf):
-    loader = PyPDFLoader(caminho_pdf)
-    documentos = loader.load()
-    db = FAISS.from_documents(documentos, embedding_model)
-    return db
+curriculo_dir = "curriculo_pdf"
+os.makedirs(curriculo_dir, exist_ok=True)
 
-index = None
-pdf_carregado = False
-
-uploaded_file = st.file_uploader("📄 Faça upload do currículo de Pablo (PDF)", type="pdf")
+uploaded_file = st.file_uploader("📄 Faça upload do currículo do Pablo (PDF)", type="pdf")
 if uploaded_file:
-    caminho_pdf = "pablo_resume.pdf"
+    caminho_pdf = os.path.join(curriculo_dir, uploaded_file.name)
     with open(caminho_pdf, "wb") as f:
         f.write(uploaded_file.read())
-    index = carregar_index(caminho_pdf)
-    pdf_carregado = True
-elif os.path.exists("pablo_resume.pdf"):
-    index = carregar_index("pablo_resume.pdf")
-    pdf_carregado = True
+
+@st.cache_resource
+def carregar_index():
+    loader = PyPDFDirectoryLoader(curriculo_dir)
+    documentos = loader.load()
+    return FAISS.from_documents(documentos, embedding_model)
+
+index = carregar_index() if os.listdir(curriculo_dir) else None
 
 # =========================
-# 🧩 Template
+# 🔤 Template de Prompt
 # =========================
 template = """
 Você é o assistente virtual de Pablo Dantas, um profissional de Ciência de Dados e Desenvolvedor Python.
@@ -123,7 +121,7 @@ def obter_resposta(pergunta):
 # 🧩 Título
 # =========================
 st.markdown('<h1 class="main-header">🤖 Assistente Virtual - Pablo Dantas</h1>', unsafe_allow_html=True)
-st.markdown('<div class="sub-description">Bem-vindo! Sou o assistente do Pablo e estou aqui para responder suas dúvidas sobre ele profissionalmente.</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-description">Sou o assistente do Pablo. Me pergunte algo sobre as experiências e habilidades dele!</div>', unsafe_allow_html=True)
 
 # =========================
 # 💡 Perguntas Rápidas
