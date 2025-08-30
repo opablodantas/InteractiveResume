@@ -67,16 +67,13 @@ def configurar_modelos():
 embedding_model, conversation_chain = configurar_modelos()
 
 # =========================
-# 📄 Carregar Currículo (Upload + Leitura com PyPDFDirectoryLoader)
+# 📄 Carregar Currículo (Leitura do Arquivo PDF)
 # =========================
 curriculo_dir = "curriculo_pdf"
 os.makedirs(curriculo_dir, exist_ok=True)
 
-uploaded_file = st.file_uploader("📄 Faça upload do currículo do Pablo (PDF)", type="pdf")
-if uploaded_file:
-    caminho_pdf = os.path.join(curriculo_dir, uploaded_file.name)
-    with open(caminho_pdf, "wb") as f:
-        f.write(uploaded_file.read())
+# Definir o caminho para o arquivo PDF
+caminho_pdf = os.path.join(curriculo_dir, "pablo_resume.pdf")
 
 @st.cache_resource
 def carregar_index():
@@ -84,7 +81,11 @@ def carregar_index():
     documentos = loader.load()
     return FAISS.from_documents(documentos, embedding_model)
 
-index = carregar_index() if os.listdir(curriculo_dir) else None
+# Verifique se o arquivo existe
+if os.path.exists(caminho_pdf):
+    index = carregar_index()
+else:
+    index = None
 
 # =========================
 # 🔤 Template de Prompt
