@@ -5,7 +5,7 @@ from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_openai import OpenAIEmbeddings, OpenAI
 from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferWindowMemory  # ✅ ALTERADO AQUI
 
 # =========================
 # 🚫 Remover avisos irrelevantes
@@ -51,8 +51,10 @@ st.markdown("""
 # =========================
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# ✅ MEMÓRIA COM JANELA LIMITADA
 if "memory" not in st.session_state:
-    st.session_state.memory = ConversationBufferMemory(memory_key="history", return_messages=True)
+    st.session_state.memory = ConversationBufferWindowMemory(memory_key="history", return_messages=True, k=3)
 
 # =========================
 # 🔧 Configuração dos Modelos
@@ -72,7 +74,6 @@ embedding_model, conversation_chain = configurar_modelos()
 curriculo_dir = "curriculo_pdf"
 os.makedirs(curriculo_dir, exist_ok=True)
 
-# Definir o caminho para o arquivo PDF
 caminho_pdf = os.path.join(curriculo_dir, "pablo_resume.pdf")
 
 @st.cache_resource
@@ -81,7 +82,6 @@ def carregar_index():
     documentos = loader.load()
     return FAISS.from_documents(documentos, embedding_model)
 
-# Verifique se o arquivo existe
 if os.path.exists(caminho_pdf):
     index = carregar_index()
 else:
@@ -106,8 +106,8 @@ Use emojis com moderação e nunca invente dados.
 def obter_resposta(pergunta):
     try:
         if index:
-            docs = index.similarity_search(pergunta, k=2)
-            contexto = "\n".join([doc.page_content[:1000] for doc in docs])
+            docs = index.similarity_search(pergunta, k=1)  # ✅ REDUZIU PARA 1 DOC
+            contexto = "\n".join([doc.page_content[:500] for doc in docs])  # ✅ LIMITOU O TEXTO
             prompt = f"{template}\n\nContexto do currículo:\n{contexto}\n\nPergunta: {pergunta}\nResposta:"
         else:
             prompt = f"{template}\n\nPergunta: {pergunta}\nResposta:"
