@@ -69,7 +69,7 @@ embedding_model, conversation_chain = configurar_modelos()
 # =========================
 # 📄 Carregar Currículo (Upload + Leitura com PyPDFDirectoryLoader)
 # =========================
-curriculo_dir = "pablo_resume.pdf"
+curriculo_dir = "curriculo_pdf"
 os.makedirs(curriculo_dir, exist_ok=True)
 
 uploaded_file = st.file_uploader("📄 Faça upload do currículo do Pablo (PDF)", type="pdf")
