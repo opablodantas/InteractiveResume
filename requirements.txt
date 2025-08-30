@@ -1,7 +1,7 @@
 streamlit
 openai
 langchain
-git+https://github.com/langchain-ai/langchain.git#subdirectory=libs/community
+langchain-community
 langchain-openai
 faiss-cpu
 pypdf
