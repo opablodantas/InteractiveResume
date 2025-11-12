@@ -4,7 +4,7 @@ import warnings
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_openai import OpenAIEmbeddings, OpenAI
 from langchain_community.vectorstores import FAISS
-from langchain.chains import ConversationChain
+from langchain.chains.conversation import ConversationChain
 from langchain.memory import ConversationBufferWindowMemory  # ✅ ALTERADO AQUI
 
 # =========================
