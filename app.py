@@ -2,10 +2,12 @@ import os
 import streamlit as st
 import warnings
 from langchain_community.document_loaders import PyPDFDirectoryLoader
-from langchain_openai import OpenAIEmbeddings, OpenAI
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
-from langchain.chains.conversation.base import ConversationChain
-from langchain.memory import ConversationBufferWindowMemory  
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain.memory import ConversationBufferWindowMemory
 
 # =========================
 # 🚫 Remover avisos irrelevantes
@@ -52,9 +54,8 @@ st.markdown("""
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ✅ MEMÓRIA COM JANELA LIMITADA
-if "memory" not in st.session_state:
-    st.session_state.memory = ConversationBufferWindowMemory(memory_key="history", return_messages=True, k=3)
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 # =========================
 # 🔧 Configuração dos Modelos
@@ -62,11 +63,15 @@ if "memory" not in st.session_state:
 @st.cache_resource
 def configurar_modelos():
     embeddings = OpenAIEmbeddings(api_key=api_key)
-    llm = OpenAI(api_key=api_key, temperature=0.7, model_name="gpt-3.5-turbo-instruct")
-    chain = ConversationChain(llm=llm, memory=st.session_state.memory, verbose=False)
-    return embeddings, chain
+    llm = ChatOpenAI(
+        api_key=api_key, 
+        temperature=0.7, 
+        model_name="gpt-3.5-turbo",
+        max_tokens=500
+    )
+    return embeddings, llm
 
-embedding_model, conversation_chain = configurar_modelos()
+embedding_model, llm = configurar_modelos()
 
 # =========================
 # 📄 Carregar Currículo (Leitura do Arquivo PDF)
@@ -78,14 +83,24 @@ caminho_pdf = os.path.join(curriculo_dir, "pablo_resume.pdf")
 
 @st.cache_resource
 def carregar_index():
-    loader = PyPDFDirectoryLoader(curriculo_dir)
-    documentos = loader.load()
-    return FAISS.from_documents(documentos, embedding_model)
+    if not os.path.exists(caminho_pdf):
+        st.error("📄 Arquivo do currículo não encontrado. Por favor, adicione o PDF do currículo na pasta 'curriculo_pdf'.")
+        return None
+    
+    try:
+        loader = PyPDFDirectoryLoader(curriculo_dir)
+        documentos = loader.load()
+        
+        if not documentos:
+            st.error("❌ Nenhum documento foi carregado. Verifique o arquivo PDF.")
+            return None
+            
+        return FAISS.from_documents(documentos, embedding_model)
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar o currículo: {str(e)}")
+        return None
 
-if os.path.exists(caminho_pdf):
-    index = carregar_index()
-else:
-    index = None
+index = carregar_index()
 
 # =========================
 # 🔤 Template de Prompt
@@ -101,20 +116,51 @@ Exemplo correto: "Pablo é um profissional com experiência em...".
 
 Seja objetivo, converse de forma clara e responda com base nas informações do currículo.
 Use emojis com moderação e nunca invente dados.
-"""
+
+Contexto do currículo:
+{context}
+
+Histórico da conversa:
+{chat_history}
+
+Pergunta: {input}
+Resposta:"""
 
 def obter_resposta(pergunta):
     try:
-        if index:
-            docs = index.similarity_search(pergunta, k=1)  # ✅ REDUZIU PARA 1 DOC
-            contexto = "\n".join([doc.page_content[:500] for doc in docs])  # ✅ LIMITOU O TEXTO
-            prompt = f"{template}\n\nContexto do currículo:\n{contexto}\n\nPergunta: {pergunta}\nResposta:"
-        else:
-            prompt = f"{template}\n\nPergunta: {pergunta}\nResposta:"
-        resposta = conversation_chain.run(input=prompt)
-        return resposta
+        if not index:
+            return "❌ O sistema de currículo não está disponível no momento. Por favor, tente novamente mais tarde."
+        
+        # Criar o prompt template
+        prompt = ChatPromptTemplate.from_template(template)
+        
+        # Criar a chain de documentos
+        document_chain = create_stuff_documents_chain(llm, prompt)
+        
+        # Configurar o retriever
+        retriever = index.as_retriever(search_kwargs={"k": 2})
+        
+        # Criar a chain de retrieval
+        retrieval_chain = create_retrieval_chain(retriever, document_chain)
+        
+        # Executar a consulta
+        response = retrieval_chain.invoke({
+            "input": pergunta,
+            "chat_history": st.session_state.chat_history[-6:]  # Manter últimas 3 trocas
+        })
+        
+        # Atualizar histórico
+        st.session_state.chat_history.append((pergunta, response["answer"]))
+        
+        # Limitar o tamanho do histórico
+        if len(st.session_state.chat_history) > 10:
+            st.session_state.chat_history = st.session_state.chat_history[-10:]
+        
+        return response["answer"]
+        
     except Exception as e:
-        return f"❌ Erro: {str(e)}"
+        st.error(f"Erro no processamento: {str(e)}")
+        return f"❌ Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente."
 
 # =========================
 # 🧩 Título
@@ -143,19 +189,19 @@ def adicionar_pergunta(pergunta):
     st.rerun()
 
 with col1:
-    if st.button("📋 Projetos", use_container_width=True):
+    if st.button("📋 Projetos", use_container_width=True, key="btn_projetos"):
         adicionar_pergunta(perguntas_rapidas["projetos"])
 
 with col2:
-    if st.button("🎯 Objetivo", use_container_width=True):
+    if st.button("🎯 Objetivo", use_container_width=True, key="btn_objetivo"):
         adicionar_pergunta(perguntas_rapidas["objetivo"])
 
 with col3:
-    if st.button("🛠️ Habilidades", use_container_width=True):
+    if st.button("🛠️ Habilidades", use_container_width=True, key="btn_habilidades"):
         adicionar_pergunta(perguntas_rapidas["habilidades"])
 
 with col4:
-    if st.button("🎓 Formação", use_container_width=True):
+    if st.button("🎓 Formação", use_container_width=True, key="btn_formacao"):
         adicionar_pergunta(perguntas_rapidas["formacao"])
 
 # =========================
@@ -169,7 +215,20 @@ for msg in st.session_state.messages:
     else:
         st.markdown(f'<div class="assistant-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-pergunta = st.chat_input("Digite sua pergunta...")
+# =========================
+# 🗑️ Botão para Limpar Conversa
+# =========================
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    if st.button("🧹 Limpar Conversa", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.chat_history = []
+        st.rerun()
+
+# =========================
+# 💭 Input de Chat
+# =========================
+pergunta = st.chat_input("Digite sua pergunta sobre o Pablo...")
 if pergunta:
     st.session_state.messages.append({"role": "user", "content": pergunta})
     resposta = obter_resposta(pergunta)
