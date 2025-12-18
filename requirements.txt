@@ -1,9 +1,24 @@
-streamlit
-openai
-langchain
-langchain-community
-langchain-openai
-faiss-cpu
-pypdf
-tiktoken
-python-dotenv
+# Interface
+streamlit>=1.25.0
+
+# OpenAI SDK
+openai>=1.32.0
+
+# LangChain principal
+langchain>=0.1.148
+
+# Extensões da comunidade LangChain
+langchain-community>=0.1.13
+
+# FAISS para vetorização de embeddings
+faiss-cpu>=1.7.4
+
+# Leitura de PDFs
+pypdf>=3.14.0
+
+# Tokenização
+tiktoken>=0.4.0
+
+# Variáveis de ambiente
+python-dotenv>=1.0.1
+
