@@ -4,7 +4,7 @@ import warnings
 
 # LangChain imports
 from langchain_community.document_loaders import PyPDFDirectoryLoader
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.vectorstores import FAISS
 from langchain.chains import create_retrieval_chain
