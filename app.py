@@ -1,10 +1,10 @@
+# ===============================
+# 📦 Imports e Configurações Iniciais
+# ===============================
 import os
 import streamlit as st
 import warnings
 
-# ===============================
-# 📦 Imports IGUAIS ao TaskBoost
-# ===============================
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -15,7 +15,7 @@ from langchain.prompts import PromptTemplate
 warnings.filterwarnings("ignore")
 
 # ===============================
-# 🔐 OpenAI API Key
+# 🔐 OpenAI API Key (Streamlit Cloud)
 # ===============================
 if "OPENAI_API_KEY" not in st.secrets:
     st.error("❌ OPENAI_API_KEY não encontrada em st.secrets.")
@@ -34,17 +34,57 @@ st.set_page_config(
 )
 
 # ===============================
-# 🎨 CSS (INALTERADO)
+# 🎨 CSS
 # ===============================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.main-header { font-size: 2.4rem; font-weight: 800; color: #2563EB; text-align: center; margin-top: 1rem; }
-.sub-description { font-size: 1.05rem; font-weight: 500; color: #4B5563; text-align: center; margin-top: -0.5rem; margin-bottom: 2rem; }
-.user-message { background-color: #DBEAFE; padding: 0.8rem; border-radius: 10px; margin: 0.3rem 0; text-align: right; color: #1E3A8A; font-size: 0.85rem; font-weight: 500; }
-.assistant-message { background-color: #E2E8F0; padding: 0.8rem; border-radius: 10px; margin: 0.3rem 0; text-align: left; color: #111827; font-size: 0.85rem; }
-#MainMenu, header, footer {visibility: hidden;}
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+.main-header {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #2563EB;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.sub-description {
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: #4B5563;
+    text-align: center;
+    margin-top: -0.5rem;
+    margin-bottom: 2rem;
+}
+
+.user-message {
+    background-color: #DBEAFE;
+    padding: 0.8rem;
+    border-radius: 10px;
+    margin: 0.3rem 0;
+    text-align: right;
+    color: #1E3A8A;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.assistant-message {
+    background-color: #E2E8F0;
+    padding: 0.8rem;
+    border-radius: 10px;
+    margin: 0.3rem 0;
+    text-align: left;
+    color: #111827;
+    font-size: 0.85rem;
+}
+
+#MainMenu, header, footer {
+    visibility: hidden;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -54,11 +94,8 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
 # ===============================
-# 🧠 Embeddings + Chroma (IGUAL TaskBoost)
+# 🧠 Embeddings + Chroma
 # ===============================
 persist_directory = "db_curriculo"
 
@@ -80,7 +117,7 @@ def carregar_ou_criar_index():
     documentos = loader.load()
 
     if not documentos:
-        st.error("❌ Nenhum documento carregado.")
+        st.error("❌ Nenhum documento PDF encontrado.")
         return None
 
     return Chroma.from_documents(
@@ -93,7 +130,7 @@ def carregar_ou_criar_index():
 index = carregar_ou_criar_index()
 
 # ===============================
-# 🔧 LLM + Prompt (IGUAL TaskBoost)
+# 🔧 Prompt + LLM
 # ===============================
 template = """
 Você é o assistente virtual de Pablo Dantas, profissional de Ciência de Dados e Desenvolvedor Python.
@@ -101,13 +138,13 @@ Você é o assistente virtual de Pablo Dantas, profissional de Ciência de Dados
 Sempre fale na terceira pessoa.
 Nunca use "eu", "meu", "minha" ou "nós".
 
-Baseie suas respostas **exclusivamente** nas informações do currículo.
-Se algo não estiver no currículo, diga que não consta.
+Baseie suas respostas exclusivamente nas informações do currículo.
+Se algo não constar no currículo, diga claramente que não consta.
 
 Contexto:
 {context}
 
-Pergunta do usuário:
+Pergunta:
 {question}
 
 Resposta:
@@ -130,23 +167,18 @@ chain = load_qa_chain(
 )
 
 # ===============================
-# 🔍 Função de Resposta (RAG)
+# 🔍 Função RAG
 # ===============================
 def obter_resposta(pergunta):
     if not index:
         return "❌ O sistema de currículo não está disponível."
 
-    docs_relacionados = index.similarity_search(pergunta, k=3)
+    docs = index.similarity_search(pergunta, k=3)
 
-    resposta = chain.run(
-        input_documents=docs_relacionados,
+    return chain.run(
+        input_documents=docs,
         question=pergunta
     )
-
-    st.session_state.chat_history.append((pergunta, resposta))
-    st.session_state.chat_history = st.session_state.chat_history[-10:]
-
-    return resposta
 
 # ===============================
 # 🧩 UI
@@ -155,7 +187,7 @@ st.markdown('<h1 class="main-header">🤖 Assistente Virtual - Pablo Dantas</h1>
 st.markdown('<div class="sub-description">Currículo falante com IA</div>', unsafe_allow_html=True)
 
 # ===============================
-# 💬 Conversa
+# 💬 Histórico
 # ===============================
 for msg in st.session_state.messages:
     if msg["role"] == "user":
@@ -168,7 +200,6 @@ for msg in st.session_state.messages:
 # ===============================
 if st.button("🧹 Limpar Conversa"):
     st.session_state.messages = []
-    st.session_state.chat_history = []
     st.rerun()
 
 # ===============================
